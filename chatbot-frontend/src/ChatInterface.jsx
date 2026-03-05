@@ -3,37 +3,31 @@ import Markdown from 'react-markdown';
 import ConfirmationModal from './ConfirmationModal';
 import './ChatInterface.css';
 
+const WELCOME = {
+  role: 'assistant',
+  content:
+    'SYNTEC BIM Agent online. I can query, add, update, and delete building classification codes.\n\nTry: *"list all categories starting with 03"* or *"what is code 04 05 13.A1?"*',
+};
+
 function ChatInterface() {
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: 'Welcome to Syntec Group AI Assistant. I can help you manage BIM classification codes and modules. How may I assist you today?'
-    }
-  ]);
+  const [messages, setMessages] = useState([WELCOME]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const [pendingAction, setPendingAction] = useState(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const API_URL = import.meta.env.VITE_API_URL || '/api';
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark-mode');
-    } else {
-      document.documentElement.classList.remove('dark-mode');
-    }
+    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -48,37 +42,33 @@ function ChatInterface() {
       const response = await fetch(`${API_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: userMessage, source: 'agent' })
+        body: JSON.stringify({ question: userMessage, source: 'agent' }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to get response: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
 
       if (data.pending_action) {
-        setMessages(prev => [
-          ...prev,
-          { role: 'assistant', content: data.answer, isActionPrompt: true }
-        ]);
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: data.answer,
+          isActionPrompt: true,
+        }]);
         setPendingAction(data.pending_action);
         return;
       }
 
-      setMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: data.answer,
-          isActionResult: !!data.action_result
-        }
-      ]);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.answer,
+        isActionResult: !!data.action_result,
+      }]);
     } catch (error) {
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', content: `Error: ${error.message}. Please ensure the backend is running.` }
-      ]);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Connection error: ${error.message}. Please ensure the backend is running.`,
+        isError: true,
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -87,28 +77,24 @@ function ChatInterface() {
   const handleConfirmAction = async () => {
     if (!pendingAction) return;
     setIsConfirming(true);
-
     try {
       const response = await fetch(`${API_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: '',
-          source: 'agent',
-          confirm_action: pendingAction
-        })
+        body: JSON.stringify({ question: '', source: 'agent', confirm_action: pendingAction }),
       });
-
       const data = await response.json();
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', content: data.answer, isActionResult: true }
-      ]);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.answer,
+        isActionResult: true,
+      }]);
     } catch (error) {
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', content: `Error: ${error.message}` }
-      ]);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Error: ${error.message}`,
+        isError: true,
+      }]);
     } finally {
       setPendingAction(null);
       setIsConfirming(false);
@@ -116,72 +102,57 @@ function ChatInterface() {
   };
 
   const handleCancelAction = () => {
-    setMessages(prev => [
-      ...prev,
-      { role: 'assistant', content: 'Action cancelled.' }
-    ]);
+    setMessages(prev => [...prev, { role: 'assistant', content: 'Action cancelled.' }]);
     setPendingAction(null);
   };
 
   return (
-    <div className="chat-container">
-      {/* Header */}
-      <header className="chat-header">
-        <div className="header-content">
-          <h1>SYNTEC AI ASSISTANT</h1>
-          <p>BIM Classification Agent</p>
+    <div className="app-shell">
+      <header className="app-header">
+        <div className="header-brand">
+          <span className="brand-mark">◈</span>
+          <div className="brand-text">
+            <span className="brand-name">SYNTEC AGENT</span>
+            <span className="brand-sub">BIM Classification Management</span>
+          </div>
         </div>
-        <div className="header-actions">
+        <div className="header-controls">
+          <div className="status-badge">
+            <span className="status-dot" />
+            <span>LIVE</span>
+          </div>
           <button
-            className="dark-mode-toggle"
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            aria-label="Toggle dark mode"
+            className="theme-toggle"
+            onClick={() => setIsDarkMode(d => !d)}
+            aria-label="Toggle theme"
           >
             {isDarkMode ? (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="5"/>
-                <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="5" />
+                <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
               </svg>
             ) : (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
             )}
           </button>
         </div>
       </header>
 
-      {/* Messages */}
-      <div className="messages-container">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`message ${msg.role}`}>
-            <div className="message-content">
-              <Markdown>{msg.content}</Markdown>
-              {msg.isActionResult && (
-                <div className="action-indicator success">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#27ae60" strokeWidth="2">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                  Action completed
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-        {isLoading && (
-          <div className="message assistant">
-            <div className="message-content">
-              <div className="typing-indicator"><span></span><span></span><span></span></div>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+      <main className="messages-area">
+        <div className="messages-inner">
+          {messages.map((msg, idx) => (
+            <MessageRow key={idx} message={msg} />
+          ))}
+          {isLoading && <TypingIndicator />}
+          <div ref={messagesEndRef} />
+        </div>
+      </main>
 
-      {/* Confirmation Modal */}
       <ConfirmationModal
         pendingAction={pendingAction}
         onConfirm={handleConfirmAction}
@@ -189,25 +160,83 @@ function ChatInterface() {
         isConfirming={isConfirming}
       />
 
-      {/* Input Form */}
-      <form onSubmit={handleSubmit} className="input-form">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Manage modules, look up codes, add or update entries..."
-          className="message-input"
-          disabled={isLoading}
-        />
-        <button type="submit" className="send-button" disabled={isLoading || !inputValue.trim()}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M2 10L18 2L10 18L8 11L2 10Z" fill="currentColor"/>
-          </svg>
-        </button>
-      </form>
+      <footer className="input-bar">
+        <form onSubmit={handleSubmit} className="input-form">
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
+            placeholder="Query classifications, add codes, update entries..."
+            className="input-field"
+            disabled={isLoading}
+            autoComplete="off"
+          />
+          <button
+            type="submit"
+            className="send-btn"
+            disabled={isLoading || !inputValue.trim()}
+            aria-label="Send"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+          </button>
+        </form>
+      </footer>
+    </div>
+  );
+}
 
-      {/* Footer */}
-      <footer className="chat-footer">Powered by Syntec Group AI</footer>
+function MessageRow({ message }) {
+  const isUser = message.role === 'user';
+  return (
+    <div className={`msg-row ${isUser ? 'msg-row--user' : 'msg-row--agent'}`}>
+      {!isUser && <div className="msg-avatar">◈</div>}
+      <div className={[
+        'msg-bubble',
+        isUser ? 'msg-bubble--user' : 'msg-bubble--agent',
+        message.isError ? 'msg-bubble--error' : '',
+        message.isActionResult ? 'msg-bubble--success' : '',
+      ].filter(Boolean).join(' ')}>
+        <Markdown
+          components={{
+            code({ node, inline, className, children, ...props }) {
+              return inline
+                ? <code className="inline-code" {...props}>{children}</code>
+                : <pre className="code-block"><code {...props}>{children}</code></pre>;
+            },
+            table({ children }) {
+              return <div className="table-wrap"><table>{children}</table></div>;
+            },
+          }}
+        >
+          {message.content}
+        </Markdown>
+        {message.isActionResult && (
+          <div className="result-badge result-badge--success">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            Action completed
+          </div>
+        )}
+        {message.isActionPrompt && (
+          <div className="result-badge result-badge--warning">⚠ Awaiting confirmation</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TypingIndicator() {
+  return (
+    <div className="msg-row msg-row--agent">
+      <div className="msg-avatar">◈</div>
+      <div className="typing-indicator">
+        <span /><span /><span />
+      </div>
     </div>
   );
 }

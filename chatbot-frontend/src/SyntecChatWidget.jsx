@@ -12,7 +12,7 @@ function SyntecChatWidget() {
   const [isConfirming, setIsConfirming] = useState(false);
   const messagesEndRef = useRef(null);
 
-  const API_URL = window.SYNTEC_WIDGET_API_URL || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || 'http://localhost:5001/api';
+  const API_URL = window.SYNTEC_WIDGET_API_URL || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || '/api';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
