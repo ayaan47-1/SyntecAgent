@@ -1,0 +1,98 @@
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+chatbot_env/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Database
+chroma_db/
+*.db
+*.sqlite
+*.sqlite3
+
+# Node modules and frontend
+chatbot-frontend/node_modules/
+chatbot-frontend/dist/
+chatbot-frontend/build/
+chatbot-frontend/.vite/
+*.local
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Backups and archives
+backups/
+*.zip
+*.tar.gz
+
+# Excel temp files
+~$*
+
+# Old planning docs
+markdowns/
+create_deployment_package.sh

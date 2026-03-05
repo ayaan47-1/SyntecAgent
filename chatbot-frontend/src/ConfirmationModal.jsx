@@ -1,0 +1,30 @@
+import React from 'react';
+
+function ConfirmationModal({ pendingAction, onConfirm, onCancel, isConfirming }) {
+  if (!pendingAction) return null;
+
+  return (
+    <div className="confirmation-overlay">
+      <div className="confirmation-modal">
+        <div className="confirmation-header">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e67e22" strokeWidth="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <h3>Confirm Action</h3>
+        </div>
+        <p className="confirmation-description">{pendingAction.description}</p>
+        <div className="confirmation-actions">
+          <button className="confirm-btn cancel" onClick={onCancel} disabled={isConfirming}>
+            Cancel
+          </button>
+          <button className="confirm-btn confirm" onClick={onConfirm} disabled={isConfirming}>
+            {isConfirming ? 'Processing...' : 'Confirm'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default ConfirmationModal;

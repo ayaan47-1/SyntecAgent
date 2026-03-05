@@ -1,0 +1,3 @@
+This is a plain text file.
+It should be rejected in the new system.
+Only PDF, CSV, and PNG files are supported.

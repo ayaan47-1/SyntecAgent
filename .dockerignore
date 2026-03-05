@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+chatbot_env/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Environment and secrets
+.env
+.env.local
+*.key
+*.pem
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+*.log
+logs/
+
+# Database (keep structure, not data for image)
+# chroma_db/ - commented out to allow mounting as volume
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+docs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
