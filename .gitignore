@@ -95,4 +95,12 @@ backups/
 
 # Old planning docs
 markdowns/
+markdowns_pdf/
 create_deployment_package.sh
+
+# Virtual environment
+venv/
+
+# Coverage
+.coverage
+htmlcov/
