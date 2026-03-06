@@ -604,9 +604,13 @@ def chat():
             "- add_module: Add a new classification entry\n"
             "- update_module: Change an entry's code or description\n"
             "- delete_module: Remove an entry\n\n"
-            "CODE FORMAT: BIM codes like '04 05 13.A1' (section.subcategory)\n"
-            "- Use markdown formatting in your responses\n"
-            "- Always confirm the action result clearly\n"
+            "CODE FORMAT: BIM codes like '04 05 13.A1' (section.subcategory)\n\n"
+            "RESPONSE FORMATTING RULES (strictly follow these):\n"
+            "- When listing multiple entries, ALWAYS use a markdown table with columns: | Code | Name | Description |\n"
+            "- Use inline code (single backticks) for codes within prose, e.g. `04 05 13.A1`\n"
+            "- NEVER use triple-backtick code blocks for codes or lists of entries\n"
+            "- Keep responses concise — one table or a short paragraph, not nested bullet lists\n"
+            "- Always confirm the action result clearly in one sentence\n"
         )
         user_prompt = (
             f"[CLASSIFICATION CONTEXT START]\n{context}\n[CLASSIFICATION CONTEXT END]\n\n"
