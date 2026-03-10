@@ -1,0 +1,12 @@
+{
+  "installCommand": "cd chatbot-frontend && npm ci",
+  "buildCommand": "cd chatbot-frontend && npm run build",
+  "outputDirectory": "chatbot-frontend/dist",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://104.131.30.241:5001/api/:path*"
+    }
+  ]
+}
