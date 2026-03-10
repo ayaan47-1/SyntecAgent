@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Context
 
-Internal AI chatbot for Syntec Group providing document-based Q&A using semantic search and GPT-4o. Serves internal BuildUSA/Syntec documentation and future client-facing website chat.
+BIM Classification Agent for Syntec Group — XLSX ingestion + agent-mode chat for managing building classification codes. Uses semantic search and GPT-4o function calling.
 
 **BuildUSA (BUSA)**: Syntec Group's modular construction project.
 - Website: https://syntecgroup.com/
@@ -19,19 +19,18 @@ Internal AI chatbot for Syntec Group providing document-based Q&A using semantic
 - OpenAI GPT-4o for chat; DeepSeek as optional primary (falls back to OpenAI)
 - OpenAI `text-embedding-3-small` for semantic search → ChromaDB (`./chroma_db/`)
 - Redis for rate limiting/caching (falls back to in-memory)
-- Document processing: PDF, CSV, PNG (OCR via DeepInfra), XLSX
+- XLSX-only ingestion → SQLite classifications + ChromaDB embeddings
 - Agentic BIM classification management via `agent/` package (OpenAI function calling)
-- Classifications stored in SQLite (`classifications.db`) + synced to ChromaDB
+- Only 3 endpoints: `/api/health`, `/api/ingest` (XLSX only), `/api/chat`
 
 ### Frontend (React + Vite)
 - Dev port: 5176 (native) or 80 (Docker/Nginx)
-- Source mode toggle: Documents (semantic search) vs Internet (direct GPT)
 - `SyntecChatWidget.jsx` — embeddable widget
 - `ConfirmationModal.jsx` — confirmation gate for destructive agent actions
 
 ### Data Flow
-1. Documents → text extraction → chunking (1200 chars, 150 overlap) → OpenAI embeddings → ChromaDB
-2. User query → embedding → similarity search (top 10 chunks) → GPT-4o context → response with citations
+1. XLSX files → `_upsert_xlsx_to_sqlite()` → SQLite `classifications` table + sheet text → ChromaDB embeddings
+2. User query → embedding → ChromaDB similarity search (top 10, excludes blogs) → GPT-4o with agent tools
 3. Module CRUD: user intent → GPT function calling → `agent/` CRUD → SQLite + ChromaDB sync
    - Non-destructive (get/list/add) → execute immediately
    - Destructive (update/delete) → `ConfirmationModal` → `handle_confirmation()` → execute
@@ -62,7 +61,7 @@ make ingest          # Run ingest_sources.py
 
 ### Testing
 ```bash
-python -m pytest tests/ -v                           # All tests
+python -m pytest tests/ -v                           # All tests (71 tests across 4 files)
 python -m pytest tests/test_module_management.py -v  # Module CRUD only
 python -m pytest tests/ -k "test_add_module" -v      # Single test by name
 python -m pytest tests/ --cov=app2 --cov=agent -v    # With coverage
@@ -78,7 +77,7 @@ npm run lint                          # ESLint
 ## Key Files
 
 **Backend**
-- `app2.py` — Flask application: endpoints, embeddings, chat logic, ChromaDB init
+- `app2.py` — Flask app: 3 endpoints (health, ingest, chat), XLSX parsing, ChromaDB init, agent wiring
 - `agent/db.py` — SQLite layer: `get_db()` (thread-local), `init_db()` (schema + JSON migration)
 - `agent/crud.py` — CRUD + `list_category(prefix)` via SQLite
 - `agent/chromadb_sync.py` — `sync_module_to_chromadb()` / `remove_module_from_chromadb()` + `init()` dependency injection
@@ -88,7 +87,6 @@ npm run lint                          # ESLint
 - `agent/storage.py` — shim that re-exports from `agent/db.py`
 - `ingest_sources.py` — bulk ingestion: PDFs, blog posts, website pages, BUSA site
 - `classifications.db` — SQLite module database (runtime-created)
-- `tests/` — pytest suite (~101 tests across 5 files)
 
 **Infrastructure**
 - `Makefile` — dual-mode automation (primary ops tool)
@@ -127,6 +125,15 @@ classifications: id, code TEXT UNIQUE, name TEXT NOT NULL, description,
 - `source='agent'`: added via chat/REST API
 - Category derived from code prefix (everything before the last `.`)
 - XLSX ingestion upserts rows; `init_db()` migrates from `modules_db.json` if present
+
+### XLSX Ingestion (`/api/ingest`)
+Only XLSX files are accepted — PDF, CSV, PNG, and all other formats return 400.
+
+`_upsert_xlsx_to_sqlite()` handles multiple sheet formats via parser dispatch:
+- `_parse_uniformat` — CSI/UniFormat codes (e.g., `04 05 13.A1`)
+- `_parse_families` — family/type sheets
+- `_parse_bim_filename` — BIM filename convention sheets
+- `_parse_variable_data` — generic fallback
 
 ### Agent Package Architecture
 
@@ -182,12 +189,6 @@ All write ops (`add`, `update`, `delete`) in `crud.py` follow this pattern:
 
 409 response includes `"pending_action"` payload for frontend to display confirmation UI.
 
-### Document Formats
-Supported: **PDF, CSV, PNG** (OCR), **XLSX** (upserts into `classifications.db`)
-Rejected (400): DOCX, PPTX, TXT
-
-XLSX ingestion: column B → code, C → name, D → description; sheet name stored; category derived from code prefix.
-
 ### Caching
 - OpenAI embeddings cached 24h (by content hash)
 - API responses cached 5 minutes
@@ -195,12 +196,11 @@ XLSX ingestion: column B → code, C → name, D → description; sheet name sto
 
 ## Testing
 
-**Test files:**
-- `tests/test_document_processing.py` — file extraction, PNG OCR
-- `tests/test_api_endpoints.py` — API integration + health endpoint flags
-- `tests/test_module_management.py` — module CRUD, REST API, atomicity, wildcard escaping
-- `tests/test_chat_handlers.py` — `handle_tool_call()`, `handle_confirmation()`, malformed JSON
-- `tests/test_xlsx_ingestion.py` — XLSX parsing, upsert, category derivation
+**Test files (71 tests across 4 files):**
+- `tests/test_api_endpoints.py` — XLSX-only ingest validation + health endpoint `chromadb_in_memory` flag
+- `tests/test_module_management.py` — module CRUD, REST API, atomicity rollback, wildcard escaping, confirmation gate
+- `tests/test_chat_handlers.py` — `handle_tool_call()`, `handle_confirmation()`, malformed JSON, tool chaining, safety cap
+- `tests/test_xlsx_ingestion.py` — XLSX parsing (normalized + original formats), upsert, category derivation
 
 **Test isolation pattern** (SQLite):
 ```python
@@ -219,7 +219,7 @@ Patch target is `agent.db._DB_PATH` (not `agent.storage.MODULES_DB_PATH`).
 
 ## Adding New Document Sources
 
-1. Place files in `./data/`
+1. Place XLSX files in `./data/`
 2. For new website URLs, update `ingest_sources.py`:
    - Blog posts: WordPress API section (~line 158)
    - Website pages: `syntec_urls` list (~line 221)

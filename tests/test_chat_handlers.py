@@ -184,7 +184,7 @@ class TestHandleToolCallBasic:
     @patch("agent.chromadb_sync._collection")
     @patch("agent.chromadb_sync._get_embedding", return_value=[0.1] * 1536)
     def test_two_tool_calls_chain(self, mock_emb, mock_coll, app_ctx, temp_modules_db):
-        """list_category → add_module chain: both tools execute, final answer returned."""
+        """list_category → add_module chain: list_category executes, add_module pauses for confirmation."""
         from agent.chat_handlers import handle_tool_call
 
         # Initial: list_category
@@ -193,7 +193,7 @@ class TestHandleToolCallBasic:
         )
         initial_msg = make_response_message(tool_call=lc_tc)
 
-        # After list_category: add_module
+        # After list_category: add_module (now destructive → confirmation required)
         am_tc = make_tool_call(
             "add_module",
             {"module_name": "New Mortar", "code": "04 05 13.A9", "description": "New"},
@@ -201,15 +201,9 @@ class TestHandleToolCallBasic:
         )
         after_lc_msg = make_response_message(tool_call=am_tc)
 
-        # After add_module: plain text
-        final_msg = make_response_message(content="Both tools ran.")
-        fq_msg = make_response_message(content="")
-
         chat_client = MagicMock()
         chat_client.chat.completions.create.side_effect = [
-            make_llm_response(after_lc_msg),   # loop iter 1 follow-up
-            make_llm_response(final_msg),       # loop iter 2 follow-up
-            make_llm_response(fq_msg),          # follow-up questions
+            make_llm_response(after_lc_msg),   # loop iter 1 follow-up: LLM calls add_module
         ]
 
         result = handle_tool_call(
@@ -219,9 +213,10 @@ class TestHandleToolCallBasic:
 
         assert result is not None
         data = result.get_json()
-        assert data["answer"] == "Both tools ran."
-        # 2 tool-loop calls + 1 follow-up questions call
-        assert chat_client.chat.completions.create.call_count == 3
+        # add_module is now destructive → returns pending_action, not final answer
+        assert "pending_action" in data
+        assert data["pending_action"]["type"] == "add_module"
+        assert data["pending_action"]["params"]["module_name"] == "New Mortar"
 
     def test_safety_cap_at_10(self, app_ctx, temp_modules_db):
         """LLM always returns a tool call → loop exits after 10 iterations."""

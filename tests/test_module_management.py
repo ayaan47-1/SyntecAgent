@@ -183,6 +183,66 @@ class TestModuleCRUD:
         assert result["count"] == 0
         assert result["entries"] == []
 
+    @patch("agent.chromadb_sync._collection")
+    @patch("agent.chromadb_sync._get_embedding", return_value=[0.1] * 1536)
+    def test_list_recent_returns_newest_first(self, mock_emb, mock_coll, temp_modules_db):
+        from agent.crud import add_module, list_recent
+
+        add_module("Alpha", "A-001")
+        add_module("Beta", "B-001")
+        add_module("Gamma", "G-001")
+
+        result = list_recent(3)
+        assert result["returned"] == 3
+        # Newest first
+        assert result["entries"][0]["name"] == "Gamma"
+        assert result["entries"][1]["name"] == "Beta"
+        assert result["entries"][2]["name"] == "Alpha"
+
+    @patch("agent.chromadb_sync._collection")
+    @patch("agent.chromadb_sync._get_embedding", return_value=[0.1] * 1536)
+    def test_list_recent_default_n(self, mock_emb, mock_coll, temp_modules_db):
+        from agent.crud import add_module, list_recent
+
+        for i in range(8):
+            add_module(f"Module {i}", f"M-{i:03d}")
+
+        result = list_recent()
+        assert result["returned"] == 5   # default n=5
+
+    @patch("agent.chromadb_sync._collection")
+    @patch("agent.chromadb_sync._get_embedding", return_value=[0.1] * 1536)
+    def test_list_recent_capped_at_20(self, mock_emb, mock_coll, temp_modules_db):
+        from agent.crud import add_module, list_recent
+
+        for i in range(25):
+            add_module(f"Cap {i}", f"CAP-{i:03d}")
+
+        result = list_recent(25)
+        assert result["returned"] == 20
+
+    def test_list_recent_excludes_xlsx_source(self, temp_modules_db):
+        import agent.db as agent_db
+        from agent.crud import list_recent
+
+        conn = agent_db.get_db()
+        now = "2026-01-01T00:00:00+00:00"
+        conn.execute(
+            "INSERT INTO classifications (code, name, source, created_at, updated_at) VALUES (?, ?, 'xlsx', ?, ?)",
+            ("XLSX-001", "XLSX Entry", now, now),
+        )
+        conn.commit()
+
+        result = list_recent(10)
+        assert all(e["name"] != "XLSX Entry" for e in result["entries"])
+
+    def test_list_recent_empty(self, temp_modules_db):
+        from agent.crud import list_recent
+
+        result = list_recent()
+        assert result["returned"] == 0
+        assert result["entries"] == []
+
     # ------------------------------------------------------------------
     # Token-cap tests
     # ------------------------------------------------------------------
@@ -421,7 +481,7 @@ class TestModuleRESTAPI:
         self, mock_get_emb, mock_collection, client, temp_modules_db
     ):
         response = client.post(
-            "/api/modules",
+            "/api/modules?confirm=true",
             json={
                 "module_name": "Test Module",
                 "code": "TST-001",
@@ -443,7 +503,7 @@ class TestModuleRESTAPI:
         self, mock_get_emb, mock_collection, client, temp_modules_db
     ):
         client.post(
-            "/api/modules", json={"module_name": "Test Module", "code": "TST-001"}
+            "/api/modules?confirm=true", json={"module_name": "Test Module", "code": "TST-001"}
         )
         response = client.get("/api/modules/Test Module")
         assert response.status_code == 200
@@ -454,7 +514,7 @@ class TestModuleRESTAPI:
         assert response.status_code == 404
 
     def test_api_add_module_missing_fields(self, client, temp_modules_db):
-        response = client.post("/api/modules", json={"module_name": "Test"})
+        response = client.post("/api/modules?confirm=true", json={"module_name": "Test"})
         assert response.status_code == 400
 
     @patch("agent.chromadb_sync._collection")
@@ -463,15 +523,25 @@ class TestModuleRESTAPI:
         self, mock_get_emb, mock_collection, client, temp_modules_db
     ):
         client.post(
-            "/api/modules", json={"module_name": "Test Module", "code": "TST-001"}
+            "/api/modules?confirm=true", json={"module_name": "Test Module", "code": "TST-001"}
         )
         response = client.delete("/api/modules/Test Module?confirm=true")
         assert response.status_code == 200
         assert response.get_json()["success"] is True
 
     # ------------------------------------------------------------------
-    # P0-6: Confirmation gate for PUT/DELETE
+    # Confirmation gate for POST/PUT/DELETE
     # ------------------------------------------------------------------
+
+    def test_add_without_confirm_returns_409(self, client, temp_modules_db):
+        """POST without ?confirm=true → 409 with pending_action."""
+        response = client.post(
+            "/api/modules", json={"module_name": "New Module", "code": "NM-001"}
+        )
+        assert response.status_code == 409
+        data = response.get_json()
+        assert "pending_action" in data
+        assert data["pending_action"]["type"] == "add_module"
 
     def test_delete_without_confirm_returns_409(self, client, temp_modules_db):
         """DELETE without ?confirm=true → 409 with pending_action."""
@@ -490,7 +560,7 @@ class TestModuleRESTAPI:
         import agent.db as agent_db
 
         client.post(
-            "/api/modules",
+            "/api/modules?confirm=true",
             json={"module_name": "Delete Me", "code": "DM-001"},
         )
         response = client.delete("/api/modules/Delete Me?confirm=true")
@@ -522,7 +592,7 @@ class TestModuleRESTAPI:
         import agent.db as agent_db
 
         client.post(
-            "/api/modules",
+            "/api/modules?confirm=true",
             json={"module_name": "Update Me", "code": "UM-001"},
         )
         response = client.put(
@@ -544,14 +614,144 @@ class TestModuleRESTAPI:
         self, mock_get_emb, mock_collection, client, temp_modules_db
     ):
         client.post(
-            "/api/modules",
+            "/api/modules?confirm=true",
             json={"module_name": "Type S Mortar", "code": "04 05 13.A0"},
         )
         client.post(
-            "/api/modules",
+            "/api/modules?confirm=true",
             json={"module_name": "Type N Mortar", "code": "04 05 13.A1"},
         )
         response = client.get("/api/modules/category/04 05 13")
         assert response.status_code == 200
         data = response.get_json()
         assert data["count"] == 2
+
+
+class TestGenerateFamilyName:
+    """Tests for generate_family_name (read-only, no ChromaDB needed)."""
+
+    @pytest.fixture(autouse=True)
+    def _insert_abbrev(self, temp_modules_db):
+        """Seed the DB with a CASEWORK abbreviation from 07-Variable Data."""
+        import agent.db as agent_db
+        conn = agent_db.get_db()
+        now = "2026-01-01T00:00:00+00:00"
+        conn.execute(
+            "INSERT INTO classifications (code, name, description, sheet, category, source, created_at, updated_at) "
+            "VALUES (?, ?, ?, '07-Variable Data', 'ABBREV', 'xlsx', ?, ?)",
+            ("CASE", "CASEWORK", "Revit family abbreviation for CASEWORK", now, now),
+        )
+        conn.commit()
+
+    def test_generate_family_name_basic(self, temp_modules_db):
+        from agent.crud import generate_family_name
+        result = generate_family_name("CASEWORK", "BASE", "4DRAWER", "SYN")
+        assert result["success"] is True
+        assert result["family_name"] == "CASE_BASE_4DRAWER_SYN"
+
+    def test_generate_family_name_no_adjective(self, temp_modules_db):
+        from agent.crud import generate_family_name
+        result = generate_family_name("CASEWORK", "BASE", company="SYN")
+        assert result["success"] is True
+        assert result["family_name"] == "CASE_BASE_SYN"
+
+    def test_generate_family_name_no_company(self, temp_modules_db):
+        from agent.crud import generate_family_name
+        result = generate_family_name("CASEWORK", "BASE", "4DRAWER")
+        assert result["success"] is True
+        assert result["family_name"] == "CASE_BASE_4DRAWER"
+
+    def test_generate_family_name_case_insensitive(self, temp_modules_db):
+        from agent.crud import generate_family_name
+        result = generate_family_name("casework", "base")
+        assert result["success"] is True
+
+    def test_generate_family_name_unknown_category(self, temp_modules_db):
+        from agent.crud import generate_family_name
+        result = generate_family_name("UNKNOWN_CAT", "X")
+        assert result["success"] is False
+        assert "error" in result
+
+    def test_generate_family_name_spaces_to_underscores(self, temp_modules_db):
+        from agent.crud import generate_family_name
+        result = generate_family_name("CASEWORK", "FLOOR MOUNTED", company="SYN")
+        assert result["success"] is True
+        assert result["family_name"] == "CASE_FLOOR_MOUNTED_SYN"
+
+
+class TestGenerateDetailName:
+    """Tests for generate_detail_name (read-only, no ChromaDB needed)."""
+
+    @pytest.fixture(autouse=True)
+    def _insert_abbrevs(self, temp_modules_db):
+        """Seed DB with DETAIL ITEMS-SMART, DETAIL ITEMS-DUMB, WALLS, CEILINGS abbreviations."""
+        import agent.db as agent_db
+        conn = agent_db.get_db()
+        now = "2026-01-01T00:00:00+00:00"
+        entries = [
+            ("DETS", "DETAIL ITEMS-SMART"),
+            ("DETD", "DETAIL ITEMS-DUMB"),
+            ("WALL", "WALLS"),
+            ("CLNG", "CEILINGS"),
+        ]
+        for abbrev, name in entries:
+            conn.execute(
+                "INSERT INTO classifications (code, name, description, sheet, category, source, created_at, updated_at) "
+                "VALUES (?, ?, ?, '07-Variable Data', 'ABBREV', 'xlsx', ?, ?)",
+                (abbrev, name, f"Revit family abbreviation for {name}", now, now),
+            )
+        conn.commit()
+
+    def test_generate_detail_name_basic(self, temp_modules_db):
+        from agent.crud import generate_detail_name
+        result = generate_detail_name("DETAIL ITEMS-SMART", "WALLS", "1HR_NLB", "SYN")
+        assert result["success"] is True
+        assert result["detail_name"] == "DETS_WALL_1HR_NLB_SYN"
+
+    def test_generate_detail_name_dumb(self, temp_modules_db):
+        from agent.crud import generate_detail_name
+        result = generate_detail_name("DETAIL ITEMS-DUMB", "WALLS", "2HR_NLB", "SYN")
+        assert result["success"] is True
+        assert result["detail_name"] == "DETD_WALL_2HR_NLB_SYN"
+
+    def test_generate_detail_name_ceilings(self, temp_modules_db):
+        from agent.crud import generate_detail_name
+        result = generate_detail_name("DETAIL ITEMS-SMART", "CEILINGS", "WALL_ANGLE", "SYN")
+        assert result["success"] is True
+        assert result["detail_name"] == "DETS_CLNG_WALL_ANGLE_SYN"
+
+    def test_generate_detail_name_no_adjective(self, temp_modules_db):
+        from agent.crud import generate_detail_name
+        result = generate_detail_name("DETAIL ITEMS-SMART", "WALLS", company="SYN")
+        assert result["success"] is True
+        assert result["detail_name"] == "DETS_WALL_SYN"
+
+    def test_generate_detail_name_no_company(self, temp_modules_db):
+        from agent.crud import generate_detail_name
+        result = generate_detail_name("DETAIL ITEMS-SMART", "WALLS", "1HR_NLB")
+        assert result["success"] is True
+        assert result["detail_name"] == "DETS_WALL_1HR_NLB"
+
+    def test_generate_detail_name_case_insensitive(self, temp_modules_db):
+        from agent.crud import generate_detail_name
+        result = generate_detail_name("detail items-smart", "walls", "1hr_nlb", "syn")
+        assert result["success"] is True
+        assert result["detail_name"] == "DETS_WALL_1HR_NLB_SYN"
+
+    def test_generate_detail_name_unknown_category(self, temp_modules_db):
+        from agent.crud import generate_detail_name
+        result = generate_detail_name("UNKNOWN_CAT", "WALLS")
+        assert result["success"] is False
+        assert "error" in result
+
+    def test_generate_detail_name_unknown_type(self, temp_modules_db):
+        from agent.crud import generate_detail_name
+        result = generate_detail_name("DETAIL ITEMS-SMART", "UNKNOWN_TYPE")
+        assert result["success"] is False
+        assert "error" in result
+
+    def test_generate_detail_name_spaces_to_underscores(self, temp_modules_db):
+        from agent.crud import generate_detail_name
+        result = generate_detail_name("DETAIL ITEMS-SMART", "WALLS", "HOLLOW MTL FRAME", "SYN")
+        assert result["success"] is True
+        assert result["detail_name"] == "DETS_WALL_HOLLOW_MTL_FRAME_SYN"

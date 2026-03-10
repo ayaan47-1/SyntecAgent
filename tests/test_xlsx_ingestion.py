@@ -303,3 +303,162 @@ class TestEdgeCases:
 
         count = _upsert_xlsx_to_sqlite(path)
         assert count == 0
+
+
+# ---------------------------------------------------------------------------
+# 03d-Families parser
+# ---------------------------------------------------------------------------
+
+class TestFamiliesParser:
+    """Tests for _parse_families: full-row reading and filtering."""
+
+    def _make_families_workbook(self, path, data_rows):
+        """Build a 03d-Families XLSX: 4 header rows then data_rows."""
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "03d-Families"
+        # 4 header rows (rows 0-3 in 0-indexed, i.e. Excel rows 1-4)
+        for _ in range(4):
+            ws.append(["", "", "", "", ""])
+        for row in data_rows:
+            ws.append(list(row))
+        wb.save(str(path))
+        return str(path)
+
+    def test_families_reads_beyond_row_10(self, tmp_path, temp_modules_db):
+        """All 12 data rows (including rows 11-12) are returned — not just first 7."""
+        from app2 import _upsert_xlsx_to_sqlite
+
+        data_rows = [
+            ("CASEWORK", "BASE", "4DRAWER", "SYN", "CASE_BASE_4DRAWER_SYN"),
+            ("CASEWORK", "BASE", "6DRAWER", "SYN", "CASE_BASE_6DRAWER_SYN"),
+            ("CASEWORK", "BASE", "2DRAWER", "SYN", "CASE_BASE_2DRAWER_SYN"),
+            ("DOORS", "EXT", "SINGLE", "SYN", "DR_EXT_SINGLE_SYN"),
+            ("DOORS", "EXT", "DOUBLE", "SYN", "DR_EXT_DOUBLE_SYN"),
+            ("DOORS", "INT", "SINGLE", "SYN", "DR_INT_SINGLE_SYN"),
+            ("DOORS", "INT", "DOUBLE", "SYN", "DR_INT_DOUBLE_SYN"),
+            ("WINDOWS", "FIXED", "SINGLE", "SYN", "WIN_FIXED_SINGLE_SYN"),
+            ("WINDOWS", "FIXED", "DOUBLE", "SYN", "WIN_FIXED_DOUBLE_SYN"),
+            ("WINDOWS", "OPERABLE", "SINGLE", "SYN", "WIN_OP_SINGLE_SYN"),
+            ("WINDOWS", "OPERABLE", "DOUBLE", "SYN", "WIN_OP_DOUBLE_SYN"),
+            ("WALLS", "EXTERIOR", "PANEL", "SYN", "WL_EXT_PANEL_SYN"),
+        ]
+        path = self._make_families_workbook(tmp_path / "fam.xlsx", data_rows)
+        count = _upsert_xlsx_to_sqlite(path)
+        assert count == 12
+
+    def test_families_skips_na_rows(self, tmp_path, temp_modules_db):
+        """Rows where col E = '#N/A' are excluded from results."""
+        from app2 import _upsert_xlsx_to_sqlite
+
+        data_rows = [
+            ("CASEWORK", "BASE", "4DRAWER", "SYN", "CASE_BASE_4DRAWER_SYN"),
+            ("DOORS", "EXT", "SINGLE", "SYN", "#N/A"),
+            ("WINDOWS", "FIXED", "DOUBLE", "SYN", "WIN_FIXED_DOUBLE_SYN"),
+        ]
+        path = self._make_families_workbook(tmp_path / "fam.xlsx", data_rows)
+        count = _upsert_xlsx_to_sqlite(path)
+        assert count == 2
+
+    def test_families_skips_empty_category(self, tmp_path, temp_modules_db):
+        """Rows where col A (category) is empty are excluded."""
+        from app2 import _upsert_xlsx_to_sqlite
+
+        data_rows = [
+            ("CASEWORK", "BASE", "4DRAWER", "SYN", "CASE_BASE_4DRAWER_SYN"),
+            ("", "EXT", "SINGLE", "SYN", "DR_EXT_SINGLE_SYN"),
+            ("WINDOWS", "FIXED", "DOUBLE", "SYN", "WIN_FIXED_DOUBLE_SYN"),
+        ]
+        path = self._make_families_workbook(tmp_path / "fam.xlsx", data_rows)
+        count = _upsert_xlsx_to_sqlite(path)
+        assert count == 2
+
+
+# ---------------------------------------------------------------------------
+# 03e-Detail Name parser
+# ---------------------------------------------------------------------------
+
+class TestDetailNameParser:
+    """Tests for _parse_detail_name: column positions, full-row reading, filtering."""
+
+    def _make_detail_workbook(self, path, data_rows, sheet_name="03e-Detail Name "):
+        """Build a 03e-Detail Name XLSX: 13 header rows then data_rows.
+
+        Column layout (0-indexed): 9=category, 10=type, 11=adjective, 12=company, 13=name.
+        """
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = sheet_name
+        empty = [""] * 14
+        for _ in range(13):
+            ws.append(empty)
+        for row in data_rows:
+            r = [""] * 14
+            r[9] = row[0]   # category
+            r[10] = row[1]  # type/function
+            r[11] = row[2]  # adjective
+            r[12] = row[3]  # company
+            r[13] = row[4]  # generated detail name
+            ws.append(r)
+        wb.save(str(path))
+        return str(path)
+
+    def test_detail_name_parses_data_rows(self, tmp_path, temp_modules_db):
+        """All 5 data rows from 03e-Detail Name are upserted."""
+        from app2 import _upsert_xlsx_to_sqlite
+
+        data_rows = [
+            ("DETAIL ITEMS-SMART", "WALLS", "1HR_NLB", "SYN", "DETS_WALL_1HR_NLB_SYN"),
+            ("DETAIL ITEMS-SMART", "WALLS", "GWB_6_ABOVE_CEILING", "SYN", "DETS_WALL_GWB_6_ABOVE_CEILING_SYN"),
+            ("DETAIL ITEMS-SMART", "CEILINGS", "WALL_ANGLE", "SYN", "DETS_CLNG_WALL_ANGLE_SYN"),
+            ("DETAIL ITEMS-SMART", "WALLS", "HOLLOW_MTL_FRAME", "SYN", "DETS_WALL_HOLLOW_MTL_FRAME_SYN"),
+            ("DETAIL ITEMS-DUMB", "WALLS", "2HR_NLB", "SYN", "DETD_WALL_2HR_NLB_SYN"),
+        ]
+        path = self._make_detail_workbook(tmp_path / "det.xlsx", data_rows)
+        count = _upsert_xlsx_to_sqlite(path)
+        assert count == 5
+
+    def test_detail_name_skips_na_rows(self, tmp_path, temp_modules_db):
+        """Rows where col N (idx 13) = '#N/A' are excluded."""
+        from app2 import _upsert_xlsx_to_sqlite
+
+        data_rows = [
+            ("DETAIL ITEMS-SMART", "WALLS", "1HR_NLB", "SYN", "DETS_WALL_1HR_NLB_SYN"),
+            ("DETAIL ITEMS-SMART", "WALLS", "", "SYN", "#N/A"),
+            ("DETAIL ITEMS-DUMB", "WALLS", "2HR_NLB", "SYN", "DETD_WALL_2HR_NLB_SYN"),
+        ]
+        path = self._make_detail_workbook(tmp_path / "det.xlsx", data_rows)
+        count = _upsert_xlsx_to_sqlite(path)
+        assert count == 2
+
+    def test_detail_name_skips_empty_category(self, tmp_path, temp_modules_db):
+        """Rows where col J (idx 9) is empty are excluded."""
+        from app2 import _upsert_xlsx_to_sqlite
+
+        data_rows = [
+            ("DETAIL ITEMS-SMART", "WALLS", "1HR_NLB", "SYN", "DETS_WALL_1HR_NLB_SYN"),
+            ("", "WALLS", "2HR_NLB", "SYN", "DETD_WALL_2HR_NLB_SYN"),
+            ("DETAIL ITEMS-DUMB", "WALLS", "3HR_NLB", "SYN", "DETD_WALL_3HR_NLB_SYN"),
+        ]
+        path = self._make_detail_workbook(tmp_path / "det.xlsx", data_rows)
+        count = _upsert_xlsx_to_sqlite(path)
+        assert count == 2
+
+    def test_detail_name_sheet_with_trailing_space(self, tmp_path, temp_modules_db):
+        """Sheet named '03e-Detail Name ' (trailing space) is matched correctly."""
+        from app2 import _upsert_xlsx_to_sqlite
+        import agent.db as agent_db
+
+        data_rows = [
+            ("DETAIL ITEMS-SMART", "WALLS", "1HR_NLB", "SYN", "DETS_WALL_1HR_NLB_SYN"),
+        ]
+        path = self._make_detail_workbook(tmp_path / "det.xlsx", data_rows, sheet_name="03e-Detail Name ")
+        _upsert_xlsx_to_sqlite(path)
+
+        row = agent_db.get_db().execute(
+            "SELECT * FROM classifications WHERE code = 'DETS_WALL_1HR_NLB_SYN'"
+        ).fetchone()
+        assert row is not None
+        assert row["name"] == "DETAIL ITEMS-SMART"

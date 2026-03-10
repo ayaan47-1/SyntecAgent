@@ -551,9 +551,71 @@ body {
   color: var(--bg);
 }
 
+.confirm-btn.suggest {
+  background: transparent;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.confirm-btn.suggest:hover:not(:disabled) {
+  background: var(--accent-dim);
+}
+
 .confirm-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.suggestion-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.suggestion-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.suggestion-field--readonly {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.suggestion-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-sec);
+}
+
+.suggestion-value {
+  font-size: 12px;
+  color: var(--text-sec);
+}
+
+.suggestion-input {
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  padding: 5px 8px;
+  font-size: 12px;
+  color: var(--text-pri);
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.suggestion-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.suggestion-input:disabled {
+  opacity: 0.5;
 }
 
 /* ============================================================

@@ -308,10 +308,10 @@ def _parse_uniformat(rows, sheet_name):
 
 
 def _parse_families(rows, sheet_name):
-    """Parse 03d-Families: rows 4-10 only. Col A = category, B = type,
+    """Parse 03d-Families: all data rows from row 5 onwards. Col A = category, B = type,
     C = adjective, D = company, E = generated family name (used as code)."""
     entries = []
-    for row in rows[4:11]:  # rows 4 through 10
+    for row in rows[4:]:  # all data rows from row 5 onwards
         if len(row) < 5:
             continue
         family_name = _cell(row, 4)
@@ -330,6 +330,34 @@ def _parse_families(rows, sheet_name):
             desc_parts.append(f"Company: {company}")
         description = " | ".join(desc_parts)
         entries.append((family_name, category_name, description, sheet_name, category_name))
+    return entries
+
+
+def _parse_detail_name(rows, sheet_name):
+    """Parse 03e-Detail Name: all data rows from row 14 onwards.
+    Col J (idx 9) = category, K (idx 10) = type/function,
+    L (idx 11) = adjective, M (idx 12) = company,
+    N (idx 13) = generated detail name (used as code)."""
+    entries = []
+    for row in rows[13:]:  # data starts at Excel row 14 (0-indexed: 13)
+        if len(row) < 14:
+            continue
+        detail_name = _cell(row, 13)
+        category_name = _cell(row, 9)
+        if not detail_name or not category_name or detail_name == "#N/A":
+            continue
+        type_fn = _cell(row, 10)
+        adjective = _cell(row, 11)
+        company = _cell(row, 12)
+        desc_parts = []
+        if type_fn:
+            desc_parts.append(f"Type: {type_fn}")
+        if adjective:
+            desc_parts.append(f"Attributes: {adjective}")
+        if company:
+            desc_parts.append(f"Company: {company}")
+        description = " | ".join(desc_parts)
+        entries.append((detail_name, category_name, description, sheet_name, category_name))
     return entries
 
 
@@ -383,6 +411,7 @@ def _parse_variable_data(rows, sheet_name):
 _SHEET_PARSERS = {
     "06-Uniformat": _parse_uniformat,
     "03d-Families": _parse_families,
+    "03e-Detail Name": _parse_detail_name,
     "02-BIM FIle Name": _parse_bim_filename,
     "07-Variable Data": _parse_variable_data,
 }
@@ -395,7 +424,8 @@ def _upsert_xlsx_to_sqlite(filepath: str) -> int:
     - Normalized file (header: code, name, description)
     - 05-Masterformat (CSI codes in col B)
     - 06-Uniformat (codes in col A with hierarchy levels)
-    - 03d-Families (Revit family naming conventions, rows 4-10)
+    - 03d-Families (Revit family naming conventions)
+    - 03e-Detail Name (Smart & Dumb detail naming conventions)
     - 02-BIM FIle Name (BIM file naming template by discipline)
     - 07-Variable Data (Revit category abbreviation lookup)
 
@@ -417,9 +447,10 @@ def _upsert_xlsx_to_sqlite(filepath: str) -> int:
 
             entries = []
 
-            # Check for a dedicated sheet parser first
-            if sheet_name in _SHEET_PARSERS:
-                entries = _SHEET_PARSERS[sheet_name](rows, sheet_name)
+            # Check for a dedicated sheet parser first (strip to handle trailing spaces)
+            _parser = _SHEET_PARSERS.get(sheet_name.strip())
+            if _parser:
+                entries = _parser(rows, sheet_name)
             else:
                 # Fallback: normalized format or CSI code detection
                 first = next((r for r in rows if any(c is not None for c in r)), None)

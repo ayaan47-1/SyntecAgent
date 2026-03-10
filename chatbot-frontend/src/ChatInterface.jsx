@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import ConfirmationModal from './ConfirmationModal';
 import './ChatInterface.css';
 
@@ -74,14 +75,17 @@ function ChatInterface() {
     }
   };
 
-  const handleConfirmAction = async () => {
+  const handleConfirmAction = async (editedParams) => {
     if (!pendingAction) return;
     setIsConfirming(true);
+    const actionToConfirm = editedParams
+      ? { ...pendingAction, params: editedParams }
+      : pendingAction;
     try {
       const response = await fetch(`${API_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: '', source: 'agent', confirm_action: pendingAction }),
+        body: JSON.stringify({ question: '', source: 'agent', confirm_action: actionToConfirm }),
       });
       const data = await response.json();
       setMessages(prev => [...prev, {
@@ -201,11 +205,13 @@ function MessageRow({ message }) {
         message.isActionResult ? 'msg-bubble--success' : '',
       ].filter(Boolean).join(' ')}>
         <Markdown
+          remarkPlugins={[remarkGfm]}
           components={{
-            code({ node, inline, className, children, ...props }) {
-              return inline
-                ? <code className="inline-code" {...props}>{children}</code>
-                : <pre className="code-block"><code {...props}>{children}</code></pre>;
+            pre({ children }) {
+              return <pre className="code-block">{children}</pre>;
+            },
+            code({ className, children, ...props }) {
+              return <code className={className ?? 'inline-code'} {...props}>{children}</code>;
             },
             table({ children }) {
               return <div className="table-wrap"><table>{children}</table></div>;

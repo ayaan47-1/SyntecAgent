@@ -104,3 +104,4 @@ venv/
 # Coverage
 .coverage
 htmlcov/
+.vercel

@@ -38,10 +38,22 @@ def create_modules_blueprint(limiter, sanitize_input):
     @bp.route("/api/modules", methods=["POST"])
     @limiter.limit("10 per hour")
     def api_add_module():
-        """Add a new module"""
+        """Add a new module — requires ?confirm=true query param."""
         data = request.get_json()
         if not data or not data.get("module_name") or not data.get("code"):
             return jsonify({"error": "module_name and code are required"}), 400
+        if not request.args.get("confirm"):
+            return jsonify({
+                "error": "Confirmation required for destructive operation",
+                "pending_action": {
+                    "type": "add_module",
+                    "params": {
+                        "module_name": sanitize_input(data["module_name"]),
+                        "code": sanitize_input(data["code"]),
+                        "description": sanitize_input(data.get("description", "")),
+                    },
+                },
+            }), 409
         result = add_module(
             sanitize_input(data["module_name"]),
             sanitize_input(data["code"]),

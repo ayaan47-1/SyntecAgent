@@ -1,7 +1,41 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+
+const FIELD_LABELS = {
+  module_name: 'Module Name',
+  code: 'Code',
+  description: 'Description',
+  new_code: 'New Code',
+  new_description: 'New Description',
+};
+
+const EDITABLE_FIELDS = {
+  add_module: ['module_name', 'code', 'description'],
+  update_module: ['new_code', 'new_description'],
+  delete_module: [],
+};
 
 function ConfirmationModal({ pendingAction, onConfirm, onCancel, isConfirming }) {
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [editedParams, setEditedParams] = useState({});
+
+  useEffect(() => {
+    setIsSuggesting(false);
+    setEditedParams({});
+  }, [pendingAction]);
+
   if (!pendingAction) return null;
+
+  const editableFields = EDITABLE_FIELDS[pendingAction.type] ?? [];
+  const canSuggest = editableFields.length > 0;
+
+  const handleSuggest = () => {
+    setEditedParams({ ...pendingAction.params });
+    setIsSuggesting(true);
+  };
+
+  const handleConfirm = () => {
+    onConfirm(isSuggesting ? editedParams : pendingAction.params);
+  };
 
   return (
     <div className="confirmation-overlay">
@@ -13,12 +47,50 @@ function ConfirmationModal({ pendingAction, onConfirm, onCancel, isConfirming })
           </svg>
           <h3>Confirm Action</h3>
         </div>
-        <p className="confirmation-description">{pendingAction.description}</p>
+
+        {!isSuggesting ? (
+          <p className="confirmation-description">{pendingAction.description}</p>
+        ) : (
+          <div className="suggestion-form">
+            {pendingAction.type === 'update_module' && (
+              <div className="suggestion-field suggestion-field--readonly">
+                <span className="suggestion-label">Module Name</span>
+                <span className="suggestion-value">{pendingAction.params.module_name}</span>
+              </div>
+            )}
+            {editableFields.map(field => (
+              <div key={field} className="suggestion-field">
+                <label className="suggestion-label" htmlFor={`sf-${field}`}>
+                  {FIELD_LABELS[field] ?? field}
+                </label>
+                <input
+                  id={`sf-${field}`}
+                  className="suggestion-input"
+                  value={editedParams[field] ?? ''}
+                  onChange={e => setEditedParams(p => ({ ...p, [field]: e.target.value }))}
+                  disabled={isConfirming}
+                  autoComplete="off"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="confirmation-actions">
           <button className="confirm-btn cancel" onClick={onCancel} disabled={isConfirming}>
             Cancel
           </button>
-          <button className="confirm-btn confirm" onClick={onConfirm} disabled={isConfirming}>
+          {!isSuggesting && canSuggest && (
+            <button className="confirm-btn suggest" onClick={handleSuggest} disabled={isConfirming}>
+              Suggest Changes
+            </button>
+          )}
+          {isSuggesting && (
+            <button className="confirm-btn suggest" onClick={() => setIsSuggesting(false)} disabled={isConfirming}>
+              ← Back
+            </button>
+          )}
+          <button className="confirm-btn confirm" onClick={handleConfirm} disabled={isConfirming}>
             {isConfirming ? 'Processing...' : 'Confirm'}
           </button>
         </div>

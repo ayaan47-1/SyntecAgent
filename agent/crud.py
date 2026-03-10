@@ -1,5 +1,6 @@
 """CRUD operations for the classifications database."""
 
+import re as _re
 from datetime import datetime, timezone
 
 from agent.db import get_db
@@ -50,7 +51,33 @@ def list_modules() -> dict:
     return result
 
 
+_RECENT_LIMIT = 20      # max rows returned by list_recent
+
 _CATEGORY_LIMIT = 100   # max rows per category query
+
+
+def list_recent(n: int = 5) -> dict:
+    """Return the N most recently added agent entries, sorted newest first (capped at 20).
+
+    Only returns entries added via the agent (source='agent'), not XLSX-ingested rows.
+    Use before delete_module to identify what was just added.
+    """
+    n = max(1, min(n, _RECENT_LIMIT))
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM classifications WHERE source = 'agent' ORDER BY created_at DESC LIMIT ?",
+        (n,),
+    ).fetchall()
+    entries = [
+        {
+            "name": row["name"],
+            "code": row["code"] or "",
+            "description": row["description"] or "",
+            "created_at": row["created_at"] or "",
+        }
+        for row in rows
+    ]
+    return {"entries": entries, "returned": len(entries), "n": n}
 
 
 def list_category(category_prefix: str) -> dict:
@@ -172,6 +199,101 @@ def update_module(
         "new_code": updated_code,
         "old_description": old_description,
         "new_description": updated_description,
+    }
+
+
+def _normalize_name_part(s: str) -> str:
+    """Uppercase and replace whitespace with underscores for family name parts."""
+    return _re.sub(r'\s+', '_', s.strip().upper())
+
+
+def generate_family_name(
+    category: str, type_function: str, adjective: str = "", company: str = ""
+) -> dict:
+    """Generate a Revit family name using the convention ABBREV_TYPE_ADJECTIVE_COMPANY.
+
+    Looks up the category abbreviation from the 07-Variable Data entries in the DB.
+    Returns the generated name without writing anything to the database.
+    """
+    conn = get_db()
+    row = conn.execute(
+        "SELECT code FROM classifications WHERE lower(name) = lower(?) AND sheet = '07-Variable Data'",
+        (category.strip(),),
+    ).fetchone()
+    if not row:
+        return {
+            "success": False,
+            "error": (
+                f"No abbreviation found for category '{category}'. "
+                "Use list_category('ABBREV') to see available categories."
+            ),
+        }
+    parts = [
+        row["code"].upper(),
+        _normalize_name_part(type_function),
+    ]
+    if adjective.strip():
+        parts.append(_normalize_name_part(adjective))
+    if company.strip():
+        parts.append(_normalize_name_part(company))
+    return {
+        "success": True,
+        "family_name": "_".join(parts),
+        "category": category,
+        "abbreviation": row["code"].upper(),
+        "type_function": type_function,
+        "adjective": adjective,
+        "company": company,
+    }
+
+
+def generate_detail_name(
+    category: str, type_function: str, adjective: str = "", company: str = ""
+) -> dict:
+    """Generate a Revit Smart/Dumb detail name using ABBREV_TYPE_ABBREV_ADJECTIVE_COMPANY.
+
+    Both category and type/function are looked up in the 07-Variable Data abbreviation table.
+    Returns the generated name without writing anything to the database.
+    """
+    conn = get_db()
+    cat_row = conn.execute(
+        "SELECT code FROM classifications WHERE lower(name) = lower(?) AND sheet = '07-Variable Data'",
+        (category.strip(),),
+    ).fetchone()
+    if not cat_row:
+        return {
+            "success": False,
+            "error": (
+                f"No abbreviation found for category '{category}'. "
+                "Use list_category('ABBREV') to see available categories."
+            ),
+        }
+    type_row = conn.execute(
+        "SELECT code FROM classifications WHERE lower(name) = lower(?) AND sheet = '07-Variable Data'",
+        (type_function.strip(),),
+    ).fetchone()
+    if not type_row:
+        return {
+            "success": False,
+            "error": (
+                f"No abbreviation found for type/function '{type_function}'. "
+                "Use list_category('ABBREV') to see available type abbreviations."
+            ),
+        }
+    parts = [cat_row["code"].upper(), type_row["code"].upper()]
+    if adjective.strip():
+        parts.append(_normalize_name_part(adjective))
+    if company.strip():
+        parts.append(_normalize_name_part(company))
+    return {
+        "success": True,
+        "detail_name": "_".join(parts),
+        "category": category,
+        "type_function": type_function,
+        "abbreviation": cat_row["code"].upper(),
+        "type_abbreviation": type_row["code"].upper(),
+        "adjective": adjective,
+        "company": company,
     }
 
 

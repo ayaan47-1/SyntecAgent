@@ -131,12 +131,16 @@ def handle_tool_call(response_message, messages, user_question, sanitize_input,
         if function_name in DESTRUCTIVE_ACTIONS:
             current_module = get_module(function_args.get("module_name", ""))
 
-            if function_name == "update_module":
+            if function_name == "add_module":
+                desc = f"Add new module '{function_args.get('module_name', '')}' with code '{function_args.get('code', '')}'"
+                if function_args.get("description"):
+                    desc += f" — {function_args['description']}"
+            elif function_name == "update_module":
                 desc = f"Update module '{function_args.get('module_name', '')}'"
                 if current_module.get("found"):
                     desc += f" (current code: {current_module['code']})"
                 if function_args.get("new_code"):
-                    desc += f" to new code: {function_args['new_code']}"
+                    desc += f" → new code: {function_args['new_code']}"
             elif function_name == "delete_module":
                 desc = f"Delete module '{function_args.get('module_name', '')}'"
                 if current_module.get("found"):

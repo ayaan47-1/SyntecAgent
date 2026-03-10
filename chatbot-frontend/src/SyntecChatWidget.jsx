@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './SyntecChatWidget.css';
 
 function SyntecChatWidget() {
@@ -209,7 +210,7 @@ function SyntecChatWidget() {
             {messages.map((msg, idx) => (
               <div key={idx} className={`sw-message sw-message-${msg.role}`}>
                 <div className="sw-message-content">
-                  <Markdown>{msg.content}</Markdown>
+                  <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
                   {msg.isActionResult && (
                     <span className="sw-action-badge">Action completed</span>
                   )}
