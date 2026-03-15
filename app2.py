@@ -408,13 +408,80 @@ def _parse_variable_data(rows, sheet_name):
     return entries
 
 
+def _parse_notes(rows, sheet_name):
+    """Parse 03a-Notes: header at row 16, data from row 17.
+    Col 0 = Note Category, Col 1 = Note Type, Col 2 = Acronym,
+    Col 3 = CSI Division-Section #. Only rows with a non-null acronym are ingested.
+    Code = NOTE-{acronym} (first occurrence per acronym wins)."""
+    entries = []
+    seen = set()
+    for row in rows[17:]:
+        if len(row) < 3:
+            continue
+        acronym = _cell(row, 2)
+        if not acronym or not acronym.replace("/", "").isalnum():
+            continue
+        code = f"NOTE-{acronym}"
+        if code in seen:
+            continue
+        seen.add(code)
+        note_type = _cell(row, 1)
+        if not note_type:
+            continue
+        csi = _cell(row, 3)
+        seq = _cell(row, 5)
+        example = _cell(row, 6)
+        desc_parts = []
+        if csi:
+            desc_parts.append(f"CSI: {csi}")
+        if seq:
+            desc_parts.append(f"Seq: {seq}")
+        if example:
+            desc_parts.append(f"Example: {example}")
+        description = " | ".join(desc_parts)
+        entries.append((code, note_type, description, sheet_name, "NOTES"))
+    return entries
+
+
+def _parse_sheets_discipline(rows, sheet_name):
+    """Parse 03h-Sheets: col 0 = Discipline, col 1 = Category #, col 2 = Category Name.
+    Code = SHEET-{disc_code}-{cat_num}, category = SHEET-{disc_code}."""
+    entries = []
+    current_disc = ""
+    current_disc_code = ""
+    for row in rows[1:]:  # skip header row
+        discipline = _cell(row, 0)
+        if discipline:
+            current_disc = discipline
+            # Extract letter code from e.g. "General (G)" → "G"
+            m = re.search(r"\(([A-Z]+)\)", discipline)
+            current_disc_code = m.group(1) if m else discipline.strip()[:1].upper()
+        cat_num = _cell(row, 1)
+        cat_name = _cell(row, 2)
+        if not cat_num or not cat_name:
+            continue
+        code = f"SHEET-{current_disc_code}-{cat_num.strip()}"
+        description = f"Discipline: {current_disc}" if current_disc else ""
+        comment = _cell(row, 7)
+        if comment:
+            description = (description + f" | {comment}") if description else comment
+        category = f"SHEET-{current_disc_code}"
+        entries.append((code, cat_name.strip(), description, sheet_name, category))
+    return entries
+
+
 _SHEET_PARSERS = {
     "06-Uniformat": _parse_uniformat,
     "03d-Families": _parse_families,
     "03e-Detail Name": _parse_detail_name,
     "02-BIM FIle Name": _parse_bim_filename,
     "07-Variable Data": _parse_variable_data,
+    "03a-Notes": _parse_notes,
+    "03h-Sheets": _parse_sheets_discipline,
 }
+
+# Sheets explicitly excluded from ingestion
+_SKIP_SHEETS = {"03f-Legends", "03g-Groups", "04-CAMs", "Project Folder Stucture"}
 
 
 def _upsert_xlsx_to_sqlite(filepath: str) -> int:
@@ -440,6 +507,8 @@ def _upsert_xlsx_to_sqlite(filepath: str) -> int:
         upsert_count = 0
 
         for sheet_name in wb.sheetnames:
+            if sheet_name.strip() in _SKIP_SHEETS:
+                continue
             ws = wb[sheet_name]
             rows = list(ws.iter_rows(values_only=True))
             if not rows:
