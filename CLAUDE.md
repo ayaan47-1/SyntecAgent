@@ -129,11 +129,16 @@ classifications: id, code TEXT UNIQUE, name TEXT NOT NULL, description,
 ### XLSX Ingestion (`/api/ingest`)
 Only XLSX files are accepted — PDF, CSV, PNG, and all other formats return 400.
 
-`_upsert_xlsx_to_sqlite()` handles multiple sheet formats via parser dispatch:
-- `_parse_uniformat` — CSI/UniFormat codes (e.g., `04 05 13.A1`)
-- `_parse_families` — family/type sheets
-- `_parse_bim_filename` — BIM filename convention sheets
-- `_parse_variable_data` — generic fallback
+`_upsert_xlsx_to_sqlite()` dispatches per sheet name via the `_SHEET_PARSERS` map:
+- `_parse_uniformat` — `06-Uniformat`: CSI/UniFormat codes (e.g., `04 05 13.A1`)
+- `_parse_families` — `03d-Families`: Revit family naming conventions
+- `_parse_detail_name` — `03e-Detail Name`: Smart & Dumb detail naming conventions
+- `_parse_bim_filename` — `02-BIM FIle Name`: BIM file naming template by discipline
+- `_parse_variable_data` — `07-Variable Data`: Revit category abbreviation lookup
+- `_parse_notes` — `03a-Notes`: notes sheets
+- `_parse_sheets_discipline` — `03h-Sheets`: sheet-numbering by discipline
+
+Sheets in `_SKIP_SHEETS` (`03f-Legends`, `03g-Groups`, `04-CAMs`, `Project Folder Stucture`) are excluded. Unmapped sheets fall through to generic header-based parsing (`code`, `name`, `description`).
 
 ### Agent Package Architecture
 
@@ -231,3 +236,15 @@ Patch target is `agent.db._DB_PATH` (not `agent.storage.MODULES_DB_PATH`).
 - SQLite: `classifications.db` (project root)
 - Redis: `redis_data` Docker volume
 - All persist across `make down/up`; only `make clean` removes volumes
+
+## Deployment
+
+Split frontend/backend (see `vercel.json`):
+- **Frontend** → Vercel project `syntec-agent` (linked via `.vercel/`). Builds `chatbot-frontend` → `dist`. `vercel.json` rewrites `/api/*` to the backend host.
+- **Backend** → DigitalOcean droplet running the Docker Compose stack (Redis + Flask) on port `5001`. `vercel.json`'s rewrite `destination` points to this host:port.
+
+Redeploy:
+- Frontend: push to the connected branch, or `cd chatbot-frontend && vercel --prod`.
+- Backend: on the droplet, `git pull && make up`.
+
+**Data does not deploy with code.** ChromaDB/SQLite live on the backend host. After provisioning a new backend, run `make ingest` (or `POST /api/ingest`) — verify with `GET /api/health` → `collection_count > 0`.
