@@ -136,3 +136,86 @@ def test_broken_formula_row_is_still_read(workbook):
     broken = [r for r in rows if r.generated_name == "#REF!"]
     assert len(broken) == 1
     assert broken[0].row == 5
+
+
+# ----------------------- Deliverable (b+c): rules engine ------------------
+import os
+
+from agent.ccn import rules as ccn_rules
+
+
+def _counts(workbook):
+    return ccn_rules.summarize(ccn_rules.run_rules(workbook))["by_rule"]
+
+
+def test_structural_counts_on_fixture(workbook):
+    c = _counts(workbook)
+    assert c.get("broken_formula") == 1          # the #REF! row
+    assert c.get("generated_name_mismatch") == 1  # the disagreeing-columns row
+    assert c.get("duplicate_name") == 1           # FLR-PLN_04_new_ar reused
+    assert c.get("empty_required_field") == 1     # the empty-level row
+    # no view-type abbreviation collision is seeded
+    assert c.get("abbrev_collision", 0) == 0
+
+
+def test_referential_orphans_grouped_with_nearest_match(workbook):
+    findings = ccn_rules.run_rules(workbook)
+    orphans = [f for f in findings if f.rule_id == "orphan_token"]
+    by_value = {f.offending_value: f for f in orphans}
+    # 'ex' (Construction Nature) and 'L05' (Levels) don't resolve
+    assert "ex" in by_value and "L05" in by_value
+    # grouped: one finding for 'ex' though it appears on two rows
+    assert "used on 2 row" in by_value["ex"].message
+    # nearest-match is case-insensitive: ex -> EXT
+    assert by_value["ex"].nearest_match == "EXT"
+    # a resolving value (phase 'new' -> NEW) produces no orphan
+    assert "new" not in by_value
+
+
+def test_findings_are_cell_traceable(workbook):
+    findings = ccn_rules.run_rules(workbook)
+    assert findings, "expected findings on the seeded fixture"
+    for f in findings:
+        assert f.sheet == "05-Views"
+        assert f.cell and f.cell[0].isalpha() and f.cell[1:].isdigit()
+        assert f.severity in {"high", "medium", "low"}
+
+
+def test_duplicate_finding_reports_all_rows(workbook):
+    findings = ccn_rules.run_rules(workbook)
+    dup = [f for f in findings if f.rule_id == "duplicate_name"]
+    assert len(dup) == 1
+    # FLR-PLN_04_new_ar is on data rows 2, 6, 7 (Excel-1-indexed)
+    assert "used on 3 rows" in dup[0].message
+
+
+def test_abbrev_collision_detects_view_type_mismatch(tmp_path):
+    """A generated name whose view-type token disagrees with the declared one."""
+    p = tmp_path / "collide.xlsx"
+    _build_workbook(str(p))
+    wb = openpyxl.load_workbook(str(p))
+    wsv = wb["05-Views"]
+    # row 2: declared view type FLR-PLN, but generated name leads with WL-PLN
+    wsv["H2"] = "WL-PLN_04_new_ar"
+    wsv["I2"] = "WL-PLN_04_new_ar"
+    wb.save(str(p))
+    findings = ccn_rules.run_rules(str(p))
+    collisions = [f for f in findings if f.rule_id == "abbrev_collision"]
+    assert len(collisions) == 1
+    assert collisions[0].offending_value == "WL-PLN"
+    assert collisions[0].nearest_match == "FLR-PLN"
+
+
+_REAL_WB = ("/Users/ayaan/Projects/AI_Chatbot/data/"
+            "04_Templates_Coding_Classification Naming_V2.01_08172026.xlsx")
+
+
+@pytest.mark.skipif(not os.path.exists(_REAL_WB), reason="real workbook not present")
+def test_regression_against_real_workbook():
+    """Locks the verified counts on the actual client workbook (V2.01)."""
+    c = ccn_rules.summarize(ccn_rules.run_rules(_REAL_WB))["by_rule"]
+    assert c["broken_formula"] == 58
+    assert c["generated_name_mismatch"] == 51
+    assert c["duplicate_name"] == 22
+    assert c["abbrev_collision"] == 1
+    assert c["orphan_token"] == 3
