@@ -1,0 +1,18 @@
+[
+  {"component": "Standard Foundations: continuous concrete footing", "quantity": 120, "unit": "LF", "row_ref": "B2"},
+  {"component": "Slab on Grade: 4in concrete slab with vapor barrier", "quantity": 950, "unit": "SF", "row_ref": "B3"},
+  {"component": "Basement Walls: 8in poured concrete foundation wall", "quantity": 40, "unit": "LF", "row_ref": "B4"},
+  {"component": "Floor Construction: engineered wood I-joist system", "quantity": 950, "unit": "SF", "row_ref": "B5"},
+  {"component": "Roof Construction: engineered roof truss system", "quantity": 1100, "unit": "SF", "row_ref": "B6"},
+  {"component": "Exterior Walls: 2x6 wood stud wall with sheathing", "quantity": 640, "unit": "SF", "row_ref": "B7"},
+  {"component": "Exterior Windows: vinyl double-hung insulated units", "quantity": 12, "unit": "EA", "row_ref": "B8"},
+  {"component": "Exterior Doors: insulated steel entry door", "quantity": 3, "unit": "EA", "row_ref": "B9"},
+  {"component": "Roof Coverings: asphalt shingle roofing", "quantity": 1100, "unit": "SF", "row_ref": "B10"},
+  {"component": "Interior Partitions: 2x4 wood stud wall with drywall", "quantity": 340, "unit": "SF", "row_ref": "B11"},
+  {"component": "Interior Doors: hollow core wood door", "quantity": 9, "unit": "EA", "row_ref": "B12"},
+  {"component": "Wall Finishes: painted gypsum wallboard", "quantity": 1450, "unit": "SF", "row_ref": "B13"},
+  {"component": "Floor Finishes: engineered hardwood flooring", "quantity": 950, "unit": "SF", "row_ref": "B14"},
+  {"component": "Ceiling Finishes: painted drywall ceiling", "quantity": 950, "unit": "SF", "row_ref": "B15"},
+  {"component": "Plumbing Fixtures: kitchen and bath fixture package", "quantity": 2, "unit": "EA", "row_ref": "B16"},
+  {"component": "Electrical Service And Distribution: 200A residential panel", "quantity": 1, "unit": "EA", "row_ref": "B17"}
+]

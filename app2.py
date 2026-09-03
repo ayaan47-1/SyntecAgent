@@ -25,6 +25,9 @@ from agent import AGENT_TOOLS, AGENT_FUNCTION_MAP, DESTRUCTIVE_ACTIONS
 from agent import create_modules_blueprint, handle_confirmation, handle_tool_call
 from agent.chromadb_sync import init as init_agent_chromadb
 from agent.db import init_db as init_classifications_db
+from agent.layer2.pipelines import foundation_pipeline, pdf_pipeline
+from agent.layer2.reconcile import reconcile as reconcile_itemizations
+from agent.layer2.trusted_data import GateBlocked, promote_to_trusted
 
 # ========== LOGGING SETUP ==========
 logging.basicConfig(
@@ -641,6 +644,69 @@ def ingest():
         logger.error(f"Ingestion failed: {e}")
         logger.error(traceback.format_exc())
         return jsonify({"error": "Ingestion failed", "details": str(e)}), 500
+
+
+# Layer 2 fixture variants: client selects by name only, never by raw path,
+# so a request can never read an arbitrary file off the server's filesystem.
+_LAYER2_FIXTURES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent", "layer2", "fixtures")
+_LAYER2_SOURCE_A_PDF = "agent/layer2/fixtures/residential-unit.sourceA.pdf"
+_LAYER2_VARIANTS = {
+    "delta": "residential-unit.sourceB.json",
+    "corrected": "residential-unit.corrected.sourceB.json",
+}
+
+
+def _resolve_layer2_fixture(filename: str) -> str:
+    """Resolve a fixture filename under the fixtures dir, confined by realpath."""
+    fixtures_real = os.path.realpath(_LAYER2_FIXTURES_DIR)
+    resolved = os.path.realpath(os.path.join(_LAYER2_FIXTURES_DIR, filename))
+    if os.path.commonpath([resolved, fixtures_real]) != fixtures_real:
+        raise ValueError(f"resolved fixture path escapes fixtures dir: {filename}")
+    return resolved
+
+
+@app.route("/api/reconcile", methods=["POST"])
+@limiter.limit("10 per hour")
+def reconcile_route():
+    """Layer 2 zero-delta reconciliation: run P2 (PDF) + P3 (Foundation), diff, gate."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "JSON payload required"}), 400
+
+        variant = data.get("variant", "delta")
+        key = data.get("key", "default")
+
+        if variant not in _LAYER2_VARIANTS:
+            return jsonify({"error": f"Invalid variant: must be one of {sorted(_LAYER2_VARIANTS)}"}), 400
+
+        source_a_pdf = _resolve_layer2_fixture(os.path.basename(_LAYER2_SOURCE_A_PDF))
+        source_b_json = _resolve_layer2_fixture(_LAYER2_VARIANTS[variant])
+
+        logger.info(f"Layer 2 reconcile: variant={variant}")
+
+        # pdf_pipeline anchors source_ref to the path it's given; use the
+        # repo-root-relative literal so it matches the golden fixture's
+        # embedded source_refs (tests run from repo root == app2.py's cwd).
+        itemization_a = pdf_pipeline.run(_LAYER2_SOURCE_A_PDF, openai_client=openai_client)
+        itemization_b = foundation_pipeline.run(source_b_json)
+        report = reconcile_itemizations(itemization_a, itemization_b)
+
+        try:
+            promote_to_trusted(report, key=key)
+            gate_status = "PROMOTED"
+        except GateBlocked:
+            gate_status = "BLOCKED"
+
+        return jsonify({
+            "delta_report": report.to_dict(),
+            "gate": gate_status,
+        })
+
+    except Exception as e:
+        logger.error(f"Reconcile failed: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": "Reconcile failed", "details": str(e)}), 500
 
 
 @app.route("/api/chat", methods=["POST"])
