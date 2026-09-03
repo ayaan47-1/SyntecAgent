@@ -116,8 +116,7 @@ class TestDemoArcViaApi:
     @patch("agent.layer2.pipelines.pdf_pipeline._default_llm_extract", side_effect=_mock_llm_extract_full)
     def test_delta_fixtures_return_blocked_gate(self, mock_llm, client):
         response = client.post("/api/reconcile", json={
-            "source_a_pdf": SOURCE_A_PDF,
-            "source_b_json": SOURCE_B_DELTA,
+            "variant": "delta",
             "key": "demo",
         })
         assert response.status_code == 200
@@ -131,8 +130,7 @@ class TestDemoArcViaApi:
     @patch("agent.layer2.pipelines.pdf_pipeline._default_llm_extract", side_effect=_mock_llm_extract_full)
     def test_corrected_fixtures_return_promoted_gate(self, mock_llm, client):
         response = client.post("/api/reconcile", json={
-            "source_a_pdf": SOURCE_A_PDF,
-            "source_b_json": SOURCE_B_CORRECTED,
+            "variant": "corrected",
             "key": "demo",
         })
         assert response.status_code == 200
@@ -140,17 +138,9 @@ class TestDemoArcViaApi:
         assert data["gate"] == "PROMOTED"
         assert data["delta_report"]["summary"]["zero_delta"] is True
 
-    def test_missing_source_a_returns_400(self, client):
+    def test_invalid_variant_returns_400(self, client):
         response = client.post("/api/reconcile", json={
-            "source_a_pdf": "/nonexistent/file.pdf",
-            "source_b_json": SOURCE_B_DELTA,
-        })
-        assert response.status_code == 400
-
-    def test_wrong_extension_returns_400(self, client):
-        response = client.post("/api/reconcile", json={
-            "source_a_pdf": SOURCE_B_DELTA,  # .json, not .pdf
-            "source_b_json": SOURCE_B_DELTA,
+            "variant": "/etc/passwd",
         })
         assert response.status_code == 400
 

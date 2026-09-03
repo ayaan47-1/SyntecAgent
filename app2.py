@@ -646,16 +646,23 @@ def ingest():
         return jsonify({"error": "Ingestion failed", "details": str(e)}), 500
 
 
-def _validate_layer2_source(file_path: str, expected_ext: str) -> bool:
-    """Validate a Layer 2 source path exists and has the expected extension."""
-    if not file_path:
-        return False
-    file_path = os.path.normpath(file_path)
-    if ".." in file_path:
-        return False
-    if not os.path.exists(file_path):
-        return False
-    return os.path.splitext(file_path)[1].lower() == expected_ext
+# Layer 2 fixture variants: client selects by name only, never by raw path,
+# so a request can never read an arbitrary file off the server's filesystem.
+_LAYER2_FIXTURES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent", "layer2", "fixtures")
+_LAYER2_SOURCE_A_PDF = "agent/layer2/fixtures/residential-unit.sourceA.pdf"
+_LAYER2_VARIANTS = {
+    "delta": "residential-unit.sourceB.json",
+    "corrected": "residential-unit.corrected.sourceB.json",
+}
+
+
+def _resolve_layer2_fixture(filename: str) -> str:
+    """Resolve a fixture filename under the fixtures dir, confined by realpath."""
+    fixtures_real = os.path.realpath(_LAYER2_FIXTURES_DIR)
+    resolved = os.path.realpath(os.path.join(_LAYER2_FIXTURES_DIR, filename))
+    if os.path.commonpath([resolved, fixtures_real]) != fixtures_real:
+        raise ValueError(f"resolved fixture path escapes fixtures dir: {filename}")
+    return resolved
 
 
 @app.route("/api/reconcile", methods=["POST"])
@@ -667,18 +674,21 @@ def reconcile_route():
         if not data:
             return jsonify({"error": "JSON payload required"}), 400
 
-        source_a_pdf = data.get("source_a_pdf")
-        source_b_json = data.get("source_b_json")
+        variant = data.get("variant", "delta")
         key = data.get("key", "default")
 
-        if not _validate_layer2_source(source_a_pdf, ".pdf"):
-            return jsonify({"error": "Invalid source_a_pdf: must be an existing .pdf file"}), 400
-        if not _validate_layer2_source(source_b_json, ".json"):
-            return jsonify({"error": "Invalid source_b_json: must be an existing .json file"}), 400
+        if variant not in _LAYER2_VARIANTS:
+            return jsonify({"error": f"Invalid variant: must be one of {sorted(_LAYER2_VARIANTS)}"}), 400
 
-        logger.info(f"Layer 2 reconcile: A={source_a_pdf} B={source_b_json}")
+        source_a_pdf = _resolve_layer2_fixture(os.path.basename(_LAYER2_SOURCE_A_PDF))
+        source_b_json = _resolve_layer2_fixture(_LAYER2_VARIANTS[variant])
 
-        itemization_a = pdf_pipeline.run(source_a_pdf, openai_client=openai_client)
+        logger.info(f"Layer 2 reconcile: variant={variant}")
+
+        # pdf_pipeline anchors source_ref to the path it's given; use the
+        # repo-root-relative literal so it matches the golden fixture's
+        # embedded source_refs (tests run from repo root == app2.py's cwd).
+        itemization_a = pdf_pipeline.run(_LAYER2_SOURCE_A_PDF, openai_client=openai_client)
         itemization_b = foundation_pipeline.run(source_b_json)
         report = reconcile_itemizations(itemization_a, itemization_b)
 
