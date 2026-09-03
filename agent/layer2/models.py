@@ -11,6 +11,7 @@ STATUSES = (
     "missing_in_A",
     "missing_in_B",
     "unclassifiable",
+    "mixed_units",
 )
 
 

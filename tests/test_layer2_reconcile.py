@@ -163,3 +163,20 @@ class TestFailClosedGate:
         b = _itemization("p3", "b", [_item(UNCLASSIFIABLE, 10, "EA")])
         report = reconcile(a, b)
         assert report.summary["zero_delta"] is False
+
+
+class TestMixedUnitsNeverSilentlySummed:
+    def test_single_side_group_with_mixed_units_is_surfaced_not_summed(self):
+        # Same code, same side: "2 ea" + "3 lf" must never collapse into "5 ea".
+        a = _itemization("p2", "a", [
+            _item("A1010", 2, "EA", "r1"),
+            _item("A1010", 3, "LF", "r2"),
+        ])
+        b = _itemization("p3", "b", [])
+        report = reconcile(a, b)
+        assert len(report.rows) == 1
+        row = report.rows[0]
+        assert row.status == "mixed_units"
+        assert row.severity == "high"
+        assert report.summary["zero_delta"] is False
+        assert report.summary["delta_count"] == 1

@@ -29,6 +29,18 @@ def _group_by_code(items: list) -> dict:
     return grouped
 
 
+def _has_mixed_units(items: list) -> bool:
+    return len({_norm_unit(i.unit) for i in items}) > 1
+
+
+def _summarize_mixed(items: list) -> dict:
+    # Never sum across differing units -- report the per-unit breakdown instead.
+    by_unit: dict = {}
+    for item in items:
+        by_unit[_norm_unit(item.unit)] = by_unit.get(_norm_unit(item.unit), 0) + item.quantity
+    return {"by_unit": by_unit, "source_refs": [i.source_ref for i in items]}
+
+
 def reconcile(itemization_a: LineItemization, itemization_b: LineItemization) -> DeltaReport:
     """Join both itemizations on classification_code and diff each group."""
     by_a = _group_by_code(itemization_a.items)
@@ -46,6 +58,12 @@ def reconcile(itemization_a: LineItemization, itemization_b: LineItemization) ->
     for code in sorted(set(by_a) | set(by_b)):
         a_items = by_a.get(code, [])
         b_items = by_b.get(code, [])
+
+        if (a_items and _has_mixed_units(a_items)) or (b_items and _has_mixed_units(b_items)):
+            a_val = _summarize_mixed(a_items) if a_items else None
+            b_val = _summarize_mixed(b_items) if b_items else None
+            rows.append(DeltaRow(code, "mixed_units", a_val, b_val, "high"))
+            continue
 
         if not a_items:
             rows.append(DeltaRow(code, "missing_in_A", None, _summarize(b_items), "high"))
