@@ -1,0 +1,314 @@
+{
+  "rows": [
+    {
+      "classification_code": "A1010",
+      "status": "match",
+      "a_value": {
+        "quantity": 120,
+        "unit": "LF",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#0"
+        ]
+      },
+      "b_value": {
+        "quantity": 120,
+        "unit": "LF",
+        "source_refs": [
+          "B2"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "A1030",
+      "status": "match",
+      "a_value": {
+        "quantity": 950,
+        "unit": "SF",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#1"
+        ]
+      },
+      "b_value": {
+        "quantity": 950,
+        "unit": "SF",
+        "source_refs": [
+          "B3"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "A2020",
+      "status": "match",
+      "a_value": {
+        "quantity": 40,
+        "unit": "LF",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#2"
+        ]
+      },
+      "b_value": {
+        "quantity": 40,
+        "unit": "LF",
+        "source_refs": [
+          "B4"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "B1010",
+      "status": "match",
+      "a_value": {
+        "quantity": 950,
+        "unit": "SF",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#3"
+        ]
+      },
+      "b_value": {
+        "quantity": 950,
+        "unit": "SF",
+        "source_refs": [
+          "B5"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "B1020",
+      "status": "match",
+      "a_value": {
+        "quantity": 1100,
+        "unit": "SF",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#4"
+        ]
+      },
+      "b_value": {
+        "quantity": 1100,
+        "unit": "SF",
+        "source_refs": [
+          "B6"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "B2010",
+      "status": "match",
+      "a_value": {
+        "quantity": 640,
+        "unit": "SF",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#5"
+        ]
+      },
+      "b_value": {
+        "quantity": 640,
+        "unit": "SF",
+        "source_refs": [
+          "B7"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "B2020",
+      "status": "match",
+      "a_value": {
+        "quantity": 12,
+        "unit": "EA",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#6"
+        ]
+      },
+      "b_value": {
+        "quantity": 12,
+        "unit": "EA",
+        "source_refs": [
+          "B8"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "B2030",
+      "status": "match",
+      "a_value": {
+        "quantity": 3,
+        "unit": "EA",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#7"
+        ]
+      },
+      "b_value": {
+        "quantity": 3,
+        "unit": "EA",
+        "source_refs": [
+          "B9"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "B3010",
+      "status": "match",
+      "a_value": {
+        "quantity": 1100,
+        "unit": "SF",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#8"
+        ]
+      },
+      "b_value": {
+        "quantity": 1100,
+        "unit": "SF",
+        "source_refs": [
+          "B10"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "C1010",
+      "status": "quantity_mismatch",
+      "a_value": {
+        "quantity": 380,
+        "unit": "SF",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#9"
+        ]
+      },
+      "b_value": {
+        "quantity": 340,
+        "unit": "SF",
+        "source_refs": [
+          "B11"
+        ]
+      },
+      "severity": "high"
+    },
+    {
+      "classification_code": "C1020",
+      "status": "match",
+      "a_value": {
+        "quantity": 9,
+        "unit": "EA",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#10"
+        ]
+      },
+      "b_value": {
+        "quantity": 9,
+        "unit": "EA",
+        "source_refs": [
+          "B12"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "C3010",
+      "status": "match",
+      "a_value": {
+        "quantity": 1450,
+        "unit": "SF",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#11"
+        ]
+      },
+      "b_value": {
+        "quantity": 1450,
+        "unit": "SF",
+        "source_refs": [
+          "B13"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "C3020",
+      "status": "match",
+      "a_value": {
+        "quantity": 950,
+        "unit": "SF",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#12"
+        ]
+      },
+      "b_value": {
+        "quantity": 950,
+        "unit": "SF",
+        "source_refs": [
+          "B14"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "C3030",
+      "status": "match",
+      "a_value": {
+        "quantity": 950,
+        "unit": "SF",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#13"
+        ]
+      },
+      "b_value": {
+        "quantity": 950,
+        "unit": "SF",
+        "source_refs": [
+          "B15"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "D2010",
+      "status": "match",
+      "a_value": {
+        "quantity": 2,
+        "unit": "EA",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#14"
+        ]
+      },
+      "b_value": {
+        "quantity": 2,
+        "unit": "EA",
+        "source_refs": [
+          "B16"
+        ]
+      },
+      "severity": "none"
+    },
+    {
+      "classification_code": "D5010",
+      "status": "match",
+      "a_value": {
+        "quantity": 1,
+        "unit": "EA",
+        "source_refs": [
+          "pdf:agent/layer2/fixtures/residential-unit.sourceA.pdf#15"
+        ]
+      },
+      "b_value": {
+        "quantity": 1,
+        "unit": "EA",
+        "source_refs": [
+          "B17"
+        ]
+      },
+      "severity": "none"
+    }
+  ],
+  "summary": {
+    "codes": 16,
+    "matched": 15,
+    "delta_count": 1,
+    "zero_delta": false
+  }
+}
