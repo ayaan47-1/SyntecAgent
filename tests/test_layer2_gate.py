@@ -10,7 +10,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 
 from agent.layer2 import trusted_data
-from agent.layer2.models import DeltaReport, DeltaRow
+from agent.layer2.classify import UNCLASSIFIABLE
+from agent.layer2.models import DeltaReport, DeltaRow, LineItem, LineItemization
+from agent.layer2.reconcile import reconcile
 
 
 def _report(zero_delta, rows=None):
@@ -72,3 +74,36 @@ class TestGate:
             assert "1" in str(e)
         else:
             pytest.fail("GateBlocked not raised")
+
+
+class TestGateFailsClosedOnEmptyEvidence:
+    """Reconciling two empty (or all-UNCLASSIFIABLE) itemizations must never
+    reach the gate as zero_delta=True — nothing-as-converged must not promote."""
+
+    def test_both_empty_itemizations_does_not_promote(self):
+        report = reconcile(
+            LineItemization(pipeline_id="p2", source_id="a", items=[]),
+            LineItemization(pipeline_id="p3", source_id="b", items=[]),
+        )
+        assert report.summary["zero_delta"] is False
+        with pytest.raises(trusted_data.GateBlocked):
+            trusted_data.promote_to_trusted(report, key="empty")
+        assert trusted_data.get_trusted("empty") is None
+
+    def test_all_unclassifiable_does_not_promote(self):
+        item = LineItem(
+            classification_code=UNCLASSIFIABLE,
+            description="mystery widget",
+            quantity=1,
+            unit="EA",
+            source_ref="r1",
+            source_pipeline="pdf",
+        )
+        report = reconcile(
+            LineItemization(pipeline_id="p2", source_id="a", items=[item]),
+            LineItemization(pipeline_id="p3", source_id="b", items=[]),
+        )
+        assert report.summary["zero_delta"] is False
+        with pytest.raises(trusted_data.GateBlocked):
+            trusted_data.promote_to_trusted(report, key="unclassifiable")
+        assert trusted_data.get_trusted("unclassifiable") is None

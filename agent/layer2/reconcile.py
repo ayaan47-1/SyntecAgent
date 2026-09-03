@@ -64,10 +64,13 @@ def reconcile(itemization_a: LineItemization, itemization_b: LineItemization) ->
             rows.append(DeltaRow(code, "match", a_summary, b_summary, "none"))
 
     delta_count = sum(1 for r in rows if r.status != "match")
+    matched = len(rows) - delta_count
     summary = {
         "codes": len(rows),
-        "matched": len(rows) - delta_count,
+        "matched": matched,
         "delta_count": delta_count,
-        "zero_delta": delta_count == 0,
+        # fail-closed: zero delta rows with no matched evidence (e.g. both
+        # itemizations empty) must not read as convergence — see spec section 5.
+        "zero_delta": delta_count == 0 and matched > 0,
     }
     return DeltaReport(rows=rows, summary=summary)

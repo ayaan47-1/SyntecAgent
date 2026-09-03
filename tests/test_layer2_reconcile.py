@@ -144,3 +144,22 @@ class TestGroupingAndSummary:
         assert report.summary["matched"] == 1
         assert report.summary["delta_count"] == 1
         assert report.summary["zero_delta"] is False
+
+
+class TestFailClosedGate:
+    """Empty/all-unclassifiable input must never report zero_delta=True
+    (spec section 5: the gate must not promote nothing-as-converged)."""
+
+    def test_both_empty_itemizations_is_not_zero_delta(self):
+        a = _itemization("p2", "a", [])
+        b = _itemization("p3", "b", [])
+        report = reconcile(a, b)
+        assert report.rows == []
+        assert report.summary["delta_count"] == 0
+        assert report.summary["zero_delta"] is False
+
+    def test_all_unclassifiable_is_not_zero_delta(self):
+        a = _itemization("p2", "a", [_item(UNCLASSIFIABLE, 10, "EA")])
+        b = _itemization("p3", "b", [_item(UNCLASSIFIABLE, 10, "EA")])
+        report = reconcile(a, b)
+        assert report.summary["zero_delta"] is False
