@@ -25,6 +25,9 @@ from agent import AGENT_TOOLS, AGENT_FUNCTION_MAP, DESTRUCTIVE_ACTIONS
 from agent import create_modules_blueprint, handle_confirmation, handle_tool_call
 from agent.chromadb_sync import init as init_agent_chromadb
 from agent.db import init_db as init_classifications_db
+from agent.layer2.pipelines import foundation_pipeline, pdf_pipeline
+from agent.layer2.reconcile import reconcile as reconcile_itemizations
+from agent.layer2.trusted_data import GateBlocked, promote_to_trusted
 
 # ========== LOGGING SETUP ==========
 logging.basicConfig(
@@ -641,6 +644,59 @@ def ingest():
         logger.error(f"Ingestion failed: {e}")
         logger.error(traceback.format_exc())
         return jsonify({"error": "Ingestion failed", "details": str(e)}), 500
+
+
+def _validate_layer2_source(file_path: str, expected_ext: str) -> bool:
+    """Validate a Layer 2 source path exists and has the expected extension."""
+    if not file_path:
+        return False
+    file_path = os.path.normpath(file_path)
+    if ".." in file_path:
+        return False
+    if not os.path.exists(file_path):
+        return False
+    return os.path.splitext(file_path)[1].lower() == expected_ext
+
+
+@app.route("/api/reconcile", methods=["POST"])
+@limiter.limit("10 per hour")
+def reconcile_route():
+    """Layer 2 zero-delta reconciliation: run P2 (PDF) + P3 (Foundation), diff, gate."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "JSON payload required"}), 400
+
+        source_a_pdf = data.get("source_a_pdf")
+        source_b_json = data.get("source_b_json")
+        key = data.get("key", "default")
+
+        if not _validate_layer2_source(source_a_pdf, ".pdf"):
+            return jsonify({"error": "Invalid source_a_pdf: must be an existing .pdf file"}), 400
+        if not _validate_layer2_source(source_b_json, ".json"):
+            return jsonify({"error": "Invalid source_b_json: must be an existing .json file"}), 400
+
+        logger.info(f"Layer 2 reconcile: A={source_a_pdf} B={source_b_json}")
+
+        itemization_a = pdf_pipeline.run(source_a_pdf, openai_client=openai_client)
+        itemization_b = foundation_pipeline.run(source_b_json)
+        report = reconcile_itemizations(itemization_a, itemization_b)
+
+        try:
+            promote_to_trusted(report, key=key)
+            gate_status = "PROMOTED"
+        except GateBlocked:
+            gate_status = "BLOCKED"
+
+        return jsonify({
+            "delta_report": report.to_dict(),
+            "gate": gate_status,
+        })
+
+    except Exception as e:
+        logger.error(f"Reconcile failed: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": "Reconcile failed", "details": str(e)}), 500
 
 
 @app.route("/api/chat", methods=["POST"])
