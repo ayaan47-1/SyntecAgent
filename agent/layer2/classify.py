@@ -9,6 +9,7 @@ when the vocabulary has no match (surfaced honestly, never silently dropped
 from __future__ import annotations
 
 import os
+import re
 import threading
 
 from agent.ccn.parse import parse_workbook
@@ -51,15 +52,23 @@ def _index_for(vocab_path: str) -> dict:
 def classify_component(description: str, vocab_path: str = DEFAULT_VOCAB_PATH) -> str:
     """Return the CCN classification_code for a component description.
 
-    Matches by keyword substring against the Agent-1 Uniformat vocabulary.
-    Returns UNCLASSIFIABLE when no vocabulary entry's description appears in
-    the given text.
+    Matches keywords on word boundaries against the Agent-1 Uniformat
+    vocabulary, collects every match, and returns the code of the longest
+    matching keyword (ties broken by sorting keys, for determinism
+    regardless of vocabulary/dict iteration order — a short keyword like
+    "door" must never hijack an unrelated longer match like "outdoor
+    lighting"). Returns UNCLASSIFIABLE when nothing matches.
     """
     text = (description or "").lower()
     if not text:
         return UNCLASSIFIABLE
     index = _index_for(vocab_path)
-    for keyword, code in index.items():
-        if keyword in text:
-            return code
-    return UNCLASSIFIABLE
+    matches = [
+        keyword
+        for keyword in index
+        if re.search(r"\b" + re.escape(keyword) + r"\b", text)
+    ]
+    if not matches:
+        return UNCLASSIFIABLE
+    best = max(sorted(matches), key=len)
+    return index[best]
